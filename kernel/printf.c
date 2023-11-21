@@ -123,7 +123,9 @@ panic(char *s)
   printf(s);
   printf("\n");
   panicked = 1; // freeze uart output from other CPUs
-  for(;;)
+  // use backtrace to debug
+  backtrace();
+  for (;;)
     ;
 }
 
@@ -132,4 +134,16 @@ printfinit(void)
 {
   initlock(&pr.lock, "pr");
   pr.locking = 1;
+}
+
+void backtrace(void){
+  printf("backtrace:\n");
+  uint64 frame_ptr = r_fp();
+  uint64 return_address;
+  uint64 high = PGROUNDUP(frame_ptr), low = PGROUNDDOWN(frame_ptr);
+  while(low <= frame_ptr && frame_ptr < high){
+    return_address = *((uint64 *)(frame_ptr - 8));
+    printf("%p\n", return_address);
+    frame_ptr = *((uint64 *)(frame_ptr - 16)); // go to where the previous frame pointer points at
+  }
 }
