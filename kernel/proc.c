@@ -686,3 +686,16 @@ procdump(void)
     printf("\n");
   }
 }
+
+/**
+ * @brief calculate how many processes are not "UNUSED"
+ * 
+ * @return uint64 
+ */
+uint64 calcProc(){
+  uint64 num = 0;
+  for (int i = 0; i < NPROC; i++)
+    if(proc[i].state != UNUSED)
+      num += 1;
+  return num;
+}
