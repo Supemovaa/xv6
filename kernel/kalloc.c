@@ -23,11 +23,29 @@ struct {
   struct run *freelist;
 } kmem;
 
+typedef struct {
+  struct spinlock lock;
+  uint8 refCount;
+} Reference;
+Reference refer[(PHYSTOP - KERNBASE) / PGSIZE + 10];
+#define PG_IDX(pa) ((pa - KERNBASE) / PGSIZE)
+
+int addRefCount(uint64 pa){
+  if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
+    return -1;
+  acquire(&(refer[PG_IDX(pa)].lock));
+  refer[PG_IDX(pa)].refCount++;
+  release(&(refer[PG_IDX(pa)].lock));
+  return 0;
+}
+
 void
 kinit()
 {
   initlock(&kmem.lock, "kmem");
-  freerange(end, (void*)PHYSTOP);
+  for (int i = 0; i < (PHYSTOP - KERNBASE) / PGSIZE + 10; i++)
+    initlock(&(refer[i].lock), "reference");
+  freerange(end, (void *)PHYSTOP);
 }
 
 void
@@ -35,8 +53,10 @@ freerange(void *pa_start, void *pa_end)
 {
   char *p;
   p = (char*)PGROUNDUP((uint64)pa_start);
-  for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
+  for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE){
+    refer[PG_IDX((uint64)p)].refCount = 0;
     kfree(p);
+  }
 }
 
 // Free the page of physical memory pointed at by pa,
@@ -50,6 +70,15 @@ kfree(void *pa)
 
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
+
+  acquire(&(refer[PG_IDX((uint64)pa)].lock));
+  if(refer[PG_IDX((uint64)pa)].refCount > 0)
+    refer[PG_IDX((uint64)pa)].refCount -= 1;
+  if(refer[PG_IDX((uint64)pa)].refCount != 0){
+    release(&(refer[PG_IDX((uint64)pa)].lock));
+    return;
+  }
+  release(&(refer[PG_IDX((uint64)pa)].lock));
 
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
@@ -76,7 +105,12 @@ kalloc(void)
     kmem.freelist = r->next;
   release(&kmem.lock);
 
-  if(r)
+  if(r){
     memset((char*)r, 5, PGSIZE); // fill with junk
+    acquire(&(refer[PG_IDX((uint64)r)].lock));
+    refer[PG_IDX((uint64)r)].refCount = 1;
+    release(&(refer[PG_IDX((uint64)r)].lock));
+  }
+
   return (void*)r;
 }

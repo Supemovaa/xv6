@@ -315,7 +315,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
+  // char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
@@ -323,14 +323,22 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
+
+    *pte = (*pte) | (((*pte) & PTE_W) << 6); // pte_cow is equal to original pte_w
+    *pte = (*pte) | ((*pte) & PTE_COW);      //set cow_bit if the phy page is already a cow page
+    *pte = (*pte) & (~PTE_W);                // clear PTE_W
+
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
+    if(mappages(new, i, PGSIZE, pa, flags) != 0)
       goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
-      goto err;
-    }
+    // if((mem = kalloc()) == 0)
+    //   goto err;
+    // memmove(mem, (char*)pa, PGSIZE);
+    // if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
+    //   kfree(mem);
+    //   goto err;
+    // }
+    addRefCount(pa);
   }
   return 0;
 
@@ -367,8 +375,16 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
       return -1;
     pte = walk(pagetable, va0, 0);
     if(pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0 ||
-       (*pte & PTE_W) == 0)
+       ((*pte & PTE_W) == 0 && (*pte & PTE_COW) == 0))
       return -1;
+    
+    else if((*pte & PTE_W) == 0 && (*pte & PTE_COW) != 0){
+      if(cow_copy(pagetable, dstva) != 0)
+        pte = walk(pagetable, va0, 0);
+      else
+        return -1;
+    }
+
     pa0 = PTE2PA(*pte);
     n = PGSIZE - (dstva - va0);
     if(n > len)
@@ -448,4 +464,27 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+uint64 cow_copy(pagetable_t pagetable, uint64 va){
+  uint64 pa = 0;
+  if(va >= MAXVA)
+    return 0;
+  pte_t *pte = walk(pagetable, va, 0);
+  void *mem = 0;
+  if((*pte & PTE_COW) && (*pte & PTE_V)){
+    pa = PTE2PA(*pte);
+    if((mem = kalloc()) == 0){
+      panic("Cow: allocation failed\n");
+      return 0;
+    }
+    memmove((void *)mem, (void *)pa, PGSIZE);
+    uint flags = PTE_FLAGS(*pte);
+    flags |= PTE_W;
+    flags &= (~PTE_COW);
+    *pte &= (~PTE_V);
+    mappages(pagetable, PGROUNDDOWN(va), PGSIZE, (uint64)mem, flags);
+    kfree((void *)pa);
+  }
+  return (uint64)mem;
 }
