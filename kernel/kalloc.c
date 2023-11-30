@@ -30,6 +30,12 @@ typedef struct {
 Reference refer[(PHYSTOP - KERNBASE) / PGSIZE + 10];
 #define PG_IDX(pa) ((pa - KERNBASE) / PGSIZE)
 
+/**
+ * @brief add one reference to the page which pa refers to
+ * 
+ * @param pa 
+ * @return int 
+ */
 int addRefCount(uint64 pa){
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     return -1;
@@ -43,6 +49,7 @@ void
 kinit()
 {
   initlock(&kmem.lock, "kmem");
+  // init reference locks
   for (int i = 0; i < (PHYSTOP - KERNBASE) / PGSIZE + 10; i++)
     initlock(&(refer[i].lock), "reference");
   freerange(end, (void *)PHYSTOP);
@@ -53,6 +60,7 @@ freerange(void *pa_start, void *pa_end)
 {
   char *p;
   p = (char*)PGROUNDUP((uint64)pa_start);
+  // init refcounts
   for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE){
     refer[PG_IDX((uint64)p)].refCount = 0;
     kfree(p);
@@ -71,6 +79,7 @@ kfree(void *pa)
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
+  // reduce a refcount on the page. if refcount reaches 0, free the whole page
   acquire(&(refer[PG_IDX((uint64)pa)].lock));
   if(refer[PG_IDX((uint64)pa)].refCount > 0)
     refer[PG_IDX((uint64)pa)].refCount -= 1;
@@ -107,6 +116,7 @@ kalloc(void)
 
   if(r){
     memset((char*)r, 5, PGSIZE); // fill with junk
+    // set the refcount of the new page to 1
     acquire(&(refer[PG_IDX((uint64)r)].lock));
     refer[PG_IDX((uint64)r)].refCount = 1;
     release(&(refer[PG_IDX((uint64)r)].lock));

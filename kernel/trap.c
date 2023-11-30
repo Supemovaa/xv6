@@ -66,6 +66,8 @@ usertrap(void)
 
     syscall();
   } 
+  // handle the pagefault. use cow_copy to deal with the target page (that triggers
+  // pagefault) first before writing
   else if(r_scause() == 15){
     uint64 fault_va = r_stval();
     uint64 pa = cow_copy(p->pagetable, fault_va);

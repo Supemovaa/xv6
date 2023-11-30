@@ -324,9 +324,12 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
 
-    *pte = (*pte) | (((*pte) & PTE_W) << 6); // pte_cow is equal to original pte_w
-    *pte = (*pte) | ((*pte) & PTE_COW);      //set cow_bit if the phy page is already a cow page
-    *pte = (*pte) & (~PTE_W);                // clear PTE_W
+    // if the old page is writable, set it to COW and read-only
+    int writable = ((*pte) & PTE_W) >> 2;
+    if(writable){
+      *pte = (*pte) & (~PTE_W);                // clear PTE_W
+      *pte |= PTE_COW;                         // set PTE_COW
+    }
 
     flags = PTE_FLAGS(*pte);
     if(mappages(new, i, PGSIZE, pa, flags) != 0)
@@ -378,6 +381,7 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
        ((*pte & PTE_W) == 0 && (*pte & PTE_COW) == 0))
       return -1;
     
+    // if copying out to a COW page...
     else if((*pte & PTE_W) == 0 && (*pte & PTE_COW) != 0){
       if(cow_copy(pagetable, dstva) != 0)
         pte = walk(pagetable, va0, 0);
@@ -466,6 +470,15 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   }
 }
 
+/**
+ * @brief when writing to address va, if it is in a COW page, we need to copy out 
+ * the content (pagetable) on the previous page to another space, write there, 
+ * and clear the PTE_V bit on old pagetable to avoid remapping
+ * 
+ * @param pagetable 
+ * @param va 
+ * @return uint64 
+ */
 uint64 cow_copy(pagetable_t pagetable, uint64 va){
   uint64 pa = 0;
   if(va >= MAXVA)
@@ -482,7 +495,7 @@ uint64 cow_copy(pagetable_t pagetable, uint64 va){
     uint flags = PTE_FLAGS(*pte);
     flags |= PTE_W;
     flags &= (~PTE_COW);
-    *pte &= (~PTE_V);
+    *pte &= (~PTE_V); // avoid remapping
     mappages(pagetable, PGROUNDDOWN(va), PGSIZE, (uint64)mem, flags);
     kfree((void *)pa);
   }
