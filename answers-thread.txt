@@ -1,1 +1,4 @@
-finish this later
+1 thread 不会引发race，但多线程可能导致race
+
+如果不加锁，假设两个线程都向table[j]处链表头部插入。线程1调用insert但尚未执行insert内容时发生线程调度，
+线程2也执行insert，但两个线程都将新的结点插入到旧的table[j]头部前，导致后执行的线程覆盖掉先执行线程的结果。
