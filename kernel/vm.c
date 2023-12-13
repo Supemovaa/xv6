@@ -331,16 +331,11 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
       *pte |= PTE_COW;                         // set PTE_COW
     }
 
+    // set page flags
     flags = PTE_FLAGS(*pte);
+    // map a new page with this flag
     if(mappages(new, i, PGSIZE, pa, flags) != 0)
       goto err;
-    // if((mem = kalloc()) == 0)
-    //   goto err;
-    // memmove(mem, (char*)pa, PGSIZE);
-    // if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-    //   kfree(mem);
-    //   goto err;
-    // }
     addRefCount(pa);
   }
   return 0;

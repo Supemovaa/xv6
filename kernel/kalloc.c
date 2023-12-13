@@ -23,10 +23,15 @@ struct {
   struct run *freelist;
 } kmem;
 
+/**
+ * @brief struct to record refcounts
+ * 
+ */
 typedef struct {
   struct spinlock lock;
   uint8 refCount;
 } Reference;
+/* record user space */
 Reference refer[(PHYSTOP - KERNBASE) / PGSIZE + 10];
 #define PG_IDX(pa) ((pa - KERNBASE) / PGSIZE)
 
