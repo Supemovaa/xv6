@@ -70,14 +70,45 @@ sys_sleep(void)
 }
 
 
-#ifdef LAB_PGTBL
-int
-sys_pgaccess(void)
+// #ifdef LAB_PGTBL
+/**
+ * @brief reports which pages have been accessed. this syscall requires 3 parameters
+ * 
+ * @param firstUserPage starting virtual address of the first user page to check
+ * @param nPages the number of pages to check
+ * @param outputAddr a user address to a buffer to store the results into a bitmask
+ * 
+ * @return int 
+ */
+int sys_pgaccess(void)
 {
   // lab pgtbl: your code here.
+  struct proc *p = myproc();
+  uint64 firstUserPage;
+  int nPages;
+  uint64 outputAddr;
+  /* read in params */
+  argaddr(0, &firstUserPage);
+  argint(1, &nPages);
+  argaddr(2, &outputAddr);
+  uint ans = 0, pgcnt = 0;
+  for (uint64 page = firstUserPage; page < firstUserPage + nPages * PGSIZE; page += PGSIZE){
+    pte_t *pte_ptr = walk(p->pagetable, page, 0);
+    // pte_t pte = *pte_ptr;
+    /* find accessed pages */
+    if(*pte_ptr & PTE_A){
+      /* fill in the bitmap */
+      ans |= (1 << pgcnt);
+      /* clear access bit */
+      *pte_ptr &= (~PTE_A);
+    }
+    pgcnt++;
+  }
+  /* copy out answer to use space */
+  copyout(p->pagetable, outputAddr, (void *)&ans, sizeof(uint64));
   return 0;
 }
-#endif
+// #endif
 
 uint64
 sys_kill(void)
