@@ -138,8 +138,10 @@ printfinit(void)
 
 void backtrace(void){
   printf("backtrace:\n");
+  // get frame pointer
   uint64 frame_ptr = r_fp();
   uint64 return_address;
+  // high & low bound of the page
   uint64 high = PGROUNDUP(frame_ptr), low = PGROUNDDOWN(frame_ptr);
   while(low <= frame_ptr && frame_ptr < high){
     return_address = *((uint64 *)(frame_ptr - 8));
