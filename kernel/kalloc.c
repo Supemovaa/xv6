@@ -24,43 +24,15 @@ struct kmem{
 };
 struct kmem kmems[NCPU];
 
-/**
- * @brief Pop the first block in the freelist.
- * 
- * @param id 
- * @return struct run* 
- */
-struct run *pop(int id){
-  struct run *r = kmems[id].freelist;
-  if(r)
-    kmems[id].freelist = r->next;
-  return r;
-}
-
-/**
- * @brief Try to insert a block into freelist. If successful, return 0; else return -1.
- *
- * @param r
- * @param id
- * @return int
- */
-void push(struct run *r, int id){
-  if(r){
-    r->next = kmems[id].freelist;
-    kmems[id].freelist = r;
-    return;
-  }
-  else
-    panic("Failed to push block: NULL r\n");
-}
-
 void
 kinit()
 {
   // initlock(&kmem.lock, "kmem");
-  for (int i = 0; i < NCPU; i++)
+  for (int i = 0; i < NCPU; i++){
     initlock(&(kmems[i].lock), "kmem");
-  freerange(end, (void *)PHYSTOP);
+    if(i == 0)
+      freerange(end, (void *)PHYSTOP);
+  }
 }
 
 void
@@ -94,7 +66,9 @@ kfree(void *pa)
   pop_off();
 
   acquire(&kmems[cpu_id].lock);
-  push(r, cpu_id);
+  // push the block into the freelist
+  r->next = kmems[cpu_id].freelist;
+  kmems[cpu_id].freelist = r;
   release(&kmems[cpu_id].lock);
 }
 
@@ -105,32 +79,41 @@ void *
 kalloc(void)
 {
   struct run *r;
-  int is_stolen = 0;
   push_off();
   int cpu_id = cpuid();
   pop_off();
 
   acquire(&kmems[cpu_id].lock);
 
-  r = pop(cpu_id);
-  
-  if(!r){
+  r = kmems[cpu_id].freelist;
+  if(r){
+    // pop out the head block
+    kmems[cpu_id].freelist = r->next;
+    release(&kmems[cpu_id].lock);
+    memset((char *)r, 5, PGSIZE); // fill with junk
+    return (void *)r;
+  }
+  else{
+    release(&kmems[cpu_id].lock);
+    // steal a block from the freelist of another CPU
     for (int id = 0; id < NCPU; id++){
-      if(id == cpu_id || !kmems[id].freelist)
-        continue;
-      acquire(&kmems[id].lock);
-      r = pop(id);
-      push(r, cpu_id);
-      is_stolen = 1;
-      release(&kmems[id].lock);
-      break;
+      if(id != cpu_id){
+        acquire(&kmems[id].lock);
+        // no free blocks anymore
+        if(id == NCPU - 1 && kmems[id].freelist == 0){
+          release(&kmems[id].lock);
+          return (void *)0;
+        }
+        if(kmems[id].freelist){
+          struct run *stolen = kmems[id].freelist;
+          kmems[id].freelist = stolen->next;
+          release(&kmems[id].lock);
+          memset((char *)stolen, 5, PGSIZE);
+          return (void *)stolen;
+        }
+        release(&kmems[id].lock);
+      }
     }
   }
-  if(is_stolen)
-    r = pop(cpu_id);
-  release(&kmems[cpu_id].lock);
-
-  if(r)
-    memset((char*)r, 5, PGSIZE); // fill with junk
-  return (void*)r;
+  return (void *)0;
 }
