@@ -24,12 +24,11 @@
 #include "buf.h"
 
 #define NBUCKETS  13
-// #define hash(dev, blockno)  ((dev * blockno) % NBUCKETS) // we use "mod" to establish func of hash
 #define hash(blockno) (blockno % NBUCKETS)
 
 struct bucket{
   struct spinlock lock;
-  struct buf head; // the head of current bucket
+  struct buf head;
 };
 
 struct {
@@ -49,13 +48,13 @@ binit(void)
   
   for(int i = 0; i < NBUCKETS; i++){
     initlock(&bcache.buckets[i].lock, "bcache.bucket");
-    bcache.buckets[i].head.next = (void*)0; // setting 0 for each tail of bucket
-    // we pass all bufs to buckets[0] firstly
+    // bcache.buckets[i].head is a sentinal node
+    bcache.buckets[i].head.next = (void *)0;
+    // pass all bufs to buckets[0] firstly
     if (i == 0){
       prev_b = &bcache.buckets[i].head;
       for(b = bcache.buf; b < bcache.buf + NBUF; b++){
-        if(b == bcache.buf + NBUF - 1) // buf[29]
-          b->next = (void*)0; // set tail of 0 for the buckets[0] of bufs
+        b->next = (void*)0;
         prev_b->next = b;
         initsleeplock(&b->lock, "buffer");
         prev_b = b; // next linking
@@ -75,7 +74,7 @@ bget(uint dev, uint blockno)
 
   // check if the block already cached?
   acquire(&bcache.buckets[index].lock);  
-  b = bcache.buckets[index].head.next; // the first buf in buckets[buk_id]
+  b = bcache.buckets[index].head.next; // the first buf in buckets[index]
   while(b){ 
     // found
     if(b->dev == dev && b->blockno == blockno){
