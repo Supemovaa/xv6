@@ -132,6 +132,7 @@ found:
     return 0;
   }
 
+  // allocate the trapframer page
   if((p->timer_trapframe = (struct trapframe *)kalloc()) == 0){
     freeproc(p);
     release(&p->lock);

@@ -109,5 +109,6 @@ uint64 sys_sigreturn(void) {
   struct proc *p = myproc();
   memmove(p->trapframe, p->timer_trapframe, sizeof(struct trapframe));
   p->handling = 0;
+  // test 3 checks whether sigreturn changes register a0
   return p->trapframe->a0;
 }

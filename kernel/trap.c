@@ -84,6 +84,7 @@ usertrap(void)
       if(p->ticks ==0 && p->handling == 0){
         memmove(p->timer_trapframe, p->trapframe, sizeof(struct trapframe));
         p->handling = 1;
+        // set the return address to the handler (originally to PC + 4)
         p->trapframe->epc = (uint64)p->handler;
       }
     }

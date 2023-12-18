@@ -136,6 +136,7 @@ printfinit(void)
   pr.locking = 1;
 }
 
+// REMEMBER: stack grows towards lower address
 void backtrace(void){
   printf("backtrace:\n");
   // get frame pointer
@@ -143,9 +144,12 @@ void backtrace(void){
   uint64 return_address;
   // high & low bound of the page
   uint64 high = PGROUNDUP(frame_ptr), low = PGROUNDDOWN(frame_ptr);
+  // while frame_ptr is still in a PAGE, loop
   while(low <= frame_ptr && frame_ptr < high){
     return_address = *((uint64 *)(frame_ptr - 8));
     printf("%p\n", return_address);
     frame_ptr = *((uint64 *)(frame_ptr - 16)); // go to where the previous frame pointer points at
+    // change the upper bound and lower bound of the page
+    high = PGROUNDUP(frame_ptr), low = PGROUNDDOWN(frame_ptr);
   }
 }

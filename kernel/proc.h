@@ -106,9 +106,10 @@ struct proc {
   char name[16];               // Process name (debugging)
 
   // for alarm
-  int ticks;
-  void (*handler)();
-  int passticks;
-  struct trapframe *timer_trapframe;
-  int handling;
+  int ticks;                              // time ticks
+  void (*handler)();                      // what to do after ticks ends
+  int passticks;                          // how many ticks have passed?
+  struct trapframe *timer_trapframe;      // save page "trapframe" before executing handler
+  int handling;                           // 1 if the handler is executing; else 0
+                                          // prevent re-entrant calls to the handler
 };
