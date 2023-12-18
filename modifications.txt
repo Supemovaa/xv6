@@ -1,0 +1,18 @@
+kernel/kalloc.c:
+
+addRefCount()
+struct Reference
+kinit()
+freerange()
+kfree()
+kalloc()
+
+kernel/trap.c:
+
+usertrap()
+
+kernel/vm.c:
+
+cow_copy()
+copyout()
+uvmcopy()

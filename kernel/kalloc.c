@@ -100,6 +100,7 @@ kfree(void *pa)
   r = (struct run*)pa;
 
   acquire(&kmem.lock);
+  // insert into the freelist
   r->next = kmem.freelist;
   kmem.freelist = r;
   release(&kmem.lock);
