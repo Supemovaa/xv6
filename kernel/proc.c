@@ -299,6 +299,10 @@ fork(void)
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
 
+  // must trace child as well
+  // so, child has the same mask as father
+  np->mask = p->mask;
+
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
 
@@ -688,14 +692,18 @@ procdump(void)
 }
 
 /**
- * @brief calculate how many processes are not "UNUSED"
+ * @brief calculate how many processes are not "UNUSED".
+ * remember to lock each proc when counting
  * 
  * @return uint64 
  */
 uint64 calcProc(){
   uint64 num = 0;
-  for (int i = 0; i < NPROC; i++)
+  for (int i = 0; i < NPROC; i++){
+    acquire(&proc[i].lock);
     if(proc[i].state != UNUSED)
       num += 1;
+    release(&proc[i].lock);
+  }
   return num;
 }

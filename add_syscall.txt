@@ -1,0 +1,30 @@
+在xv6中添加系统调用的步骤
+
+1. 在kernel/syscall.h中加入系统调用号
+#define SYS_trace 22
+
+2. 在kernel/syscall.c中声明系统调用的处理函数（内核中），并将其添加到对应表中
+extern uint64 sys_trace(void);
+[SYS_trace]   sys_trace,
+
+3. 在kernel/sysproc.c中编写处理函数
+uint64 sys_trace(){
+    ...
+}
+
+4. 如果处理函数中用到了新的函数，需要将其在kernel/defs.h中声明
+// proc.c
+uint64 calcProc(void);
+...
+// kalloc.c
+uint64 calcFreememSize(void);
+
+5. 在user/user.h中声明引发系统调用的函数（用户模式下）。如果这个函数参数中有新的struct，也要一并声明
+struct sysinfo;
+int sysinfo(struct sysinfo *);
+
+6. 在Makefile中增加这些引发系统调用的函数的文件的编译
+$U/_trace\
+
+7. 在user/usys.pl中加入entry条目
+entry("trace");

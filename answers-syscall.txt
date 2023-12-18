@@ -1,0 +1,27 @@
+xv6 gdb guidance:
+> make qemu-gdb
+(in another terminal)
+> gdb-multiarch
+(in gdb)
+> file kernel/kernel
+> target remote localhost:xxxxxxxxxx
+> b syscall
+> c
+> (do some)
+
+(1) usertrap() called syscall
+(2) 7
+(3) user mode
+(4) 
+asm:
+```
+  num = *(int *)0;
+    800020b0:	00002903          	lw	s2,0(zero) # 0 <_entry-0x80000000>
+
+```
+register s2 corresponds to num
+(5)
+load page fault caused kernel crash
+(6)
+name: initcode
+pid: 1

@@ -7,8 +7,8 @@
 #include "syscall.h"
 #include "defs.h"
 
-// record all syscall names
-char *syscall_names[] = {
+// record all syscall names for tracing them
+static char *syscall_names[] = {
 	"", "fork", "exit",
 	"wait", "pipe", "read", "kill",
 	"exec", "fstat", "chdir", "dup",
@@ -110,6 +110,7 @@ extern uint64 sys_unlink(void);
 extern uint64 sys_link(void);
 extern uint64 sys_mkdir(void);
 extern uint64 sys_close(void);
+extern uint64 sys_trace(void);
 extern uint64 sys_info(void);
 
 // An array mapping syscall numbers from syscall.h
@@ -136,6 +137,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
+[SYS_trace]   sys_trace,
 [SYS_sysinfo]    sys_info,
 };
 
@@ -150,6 +152,9 @@ syscall(void)
     // Use num to lookup the system call function for num, call it,
     // and store its return value in p->trapframe->a0
     p->trapframe->a0 = syscalls[num]();
+    // check if this syscall is being traced
+    if(p->mask & (1 << num))
+      printf("%d: syscall %s -> %d\n", p->pid, syscall_names[num], p->trapframe->a0);
   } else {
     printf("%d %s: unknown sys call %d\n",
             p->pid, p->name, num);

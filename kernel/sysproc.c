@@ -93,6 +93,14 @@ sys_uptime(void)
   return xticks;
 }
 
+uint64 sys_trace(void){
+  int n;
+  struct proc *p = myproc();
+  argint(0, &n);
+  p->mask = n;
+  return 0;
+}
+
 uint64 sys_info(void)
 {
   struct sysinfo info;
