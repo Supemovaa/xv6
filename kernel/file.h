@@ -21,12 +21,12 @@ struct inode {
   struct sleeplock lock; // protects everything below here
   int valid;          // inode has been read from disk?
 
-  short type;         // copy of disk inode
+  short type;         // copy of disk inode, 0 if inode is free
   short major;
   short minor;
-  short nlink;
-  uint size;
-  uint addrs[NDIRECT+2];
+  short nlink;        // 引用这个inode的目录项的数量 （链接到这个inode）
+  uint size;          // 文件字节数
+  uint addrs[NDIRECT+2]; // 文件的块
 };
 
 // map major device number to device functions.

@@ -131,25 +131,31 @@ sys_link(void)
     return -1;
 
   begin_op();
+  // old真的要存在
   if((ip = namei(old)) == 0){
     end_op();
     return -1;
   }
 
+  // 加锁访问
   ilock(ip);
+  // old不能是目录
   if(ip->type == T_DIR){
     iunlockput(ip);
     end_op();
     return -1;
   }
 
+  // 增加链接数
   ip->nlink++;
   iupdate(ip);
   iunlock(ip);
 
+  // 找new的父目录，必须要存在，并且要和old的inode在同一个设备(dev)上
   if((dp = nameiparent(new, name)) == 0)
     goto bad;
   ilock(dp);
+  // 在new的父目录下写一个目录项，连接到old的inode
   if(dp->dev != ip->dev || dirlink(dp, name, ip->inum) < 0){
     iunlockput(dp);
     goto bad;
@@ -338,9 +344,11 @@ sys_open(void)
     }
   }
 
+  // 看是不是软链接。看有没有NOFOLLOW，如果有就打开文件本身，不链接过去
   if(!(omode & O_NOFOLLOW) && ip->type == T_SYMLINK){
     int cycle = 0;
     while(ip->type == T_SYMLINK){
+      // 读链接到哪了
       if(readi(ip, 0, (uint64)&sympath, 0, MAXPATH) == -1){
         iunlock(ip);
         end_op();
@@ -357,6 +365,7 @@ sys_open(void)
         return -1;
       }
       ip = symip;
+      // 最后出来的那个ip，也就是链接终点，上锁
       ilock(ip);
     }
   }
@@ -530,15 +539,25 @@ sys_pipe(void)
   return 0;
 }
 
+/**
+ * @brief create a symlink (soft link) that refers to target.
+ * target不必存在
+ *
+ * @return uint64
+ * @retval 0 if success; 1 if failure
+ */
 uint64 sys_symlink(void){
   char target[MAXPATH], path[MAXPATH], name[DIRSIZ];
+  // ip 指target，dp指path的父目录
   struct inode *ip, *dp, *sym;
   if(argstr(0, target, MAXPATH) < 0 || argstr(1, path, MAXPATH) < 0)
     return -1;
 
   begin_op();
+  // target 不存在
   if((ip = namei(target)) != 0){
     ilock(ip);
+    // 不处理是目录的情况
     if(ip->type == T_DIR){
       iunlock(ip);
       end_op();
@@ -547,27 +566,32 @@ uint64 sys_symlink(void){
     iunlock(ip);
   }
 
+  // path没有父目录
   if((dp = nameiparent(path, name)) == 0){
     end_op();
     return -1;
   }
 
   ilock(dp);
+  // 不能有同名文件
   if((sym = dirlookup(dp, name, 0)) != 0){
     iunlockput(dp);
     end_op();
     return -1;
   }
+  // 生成一个软连接的inode
   if((sym = ialloc(dp->dev, T_SYMLINK)) == 0)
     panic("create: alloc");
   ilock(sym);
   sym->nlink = 1;
   iupdate(sym);
 
+  // sym放到path的父目录下
   if(dirlink(dp, name, sym->inum) < 0)
     panic("creat: dirlink");
 
   iupdate(dp);
+  // 把target字符串写进inode里
   if(writei(sym, 0, (uint64)&target, 0, strlen(target)) != strlen(target))
     panic("symlink: writei");
 

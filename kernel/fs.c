@@ -379,6 +379,7 @@ iunlockput(struct inode *ip)
 // Return the disk block address of the nth block in inode ip.
 // If there is no such block, bmap allocates one.
 // returns 0 if out of disk space.
+// 返回文件第bn块
 static uint
 bmap(struct inode *ip, uint bn)
 {
@@ -400,13 +401,14 @@ bmap(struct inode *ip, uint bn)
   // block 11
   if(bn < NINDIRECT){
     // Load indirect block, allocating if necessary.
+    // ip->addrs[NDIRECT]中是一级块表，直接从表中取即可
     if((addr = ip->addrs[NDIRECT]) == 0){
       addr = balloc(ip->dev);
       if(addr == 0)
         return 0;
       ip->addrs[NDIRECT] = addr;
     }
-    bp = bread(ip->dev, addr);
+    bp = bread(ip->dev, addr);  // bread返回的是locked buffer，因此需要释放
     a = (uint*)bp->data;
     if((addr = a[bn]) == 0){
       addr = balloc(ip->dev);
@@ -415,20 +417,21 @@ bmap(struct inode *ip, uint bn)
         log_write(bp);
       }
     }
-    brelse(bp);
+    brelse(bp);                 // 释放bread返回的buffer
     return addr;
   }
   bn -= NINDIRECT;
 
   // block 12
+  // ip->addrs[NDIRECT + 1]中存放的是二级块表
   if(bn < NINDIRECT * NINDIRECT){
-    int idx = bn / NINDIRECT;
-    int offset = bn % NINDIRECT;
+    int idx = bn / NINDIRECT;       // 二级块表中第几块？
+    int offset = bn % NINDIRECT;    // 一级块表中第几块？
 
     if((addr = ip->addrs[NDIRECT + 1]) == 0){
       ip->addrs[NDIRECT + 1] = addr = balloc(ip->dev);
     }
-
+    // 拿二级块表
     bp = bread(ip->dev, addr);
     a = (uint *)bp->data;
     if((addr = a[idx]) == 0){
@@ -436,7 +439,7 @@ bmap(struct inode *ip, uint bn)
       log_write(bp);
     }
     brelse(bp);
-
+    // 拿一级块表
     bp = bread(ip->dev, addr);
     a = (uint *)bp->data;
     if((addr = a[offset]) == 0){
@@ -453,11 +456,12 @@ bmap(struct inode *ip, uint bn)
 
 // Truncate inode (discard contents).
 // Caller must hold ip->lock.
+// 释放掉inode中全部的块
 void
 itrunc(struct inode *ip)
 {
   int i, j;
-  struct buf *bp;
+  struct buf *bp, *bpd = 0;
   uint *a;
 
   // block 0~10
@@ -483,13 +487,15 @@ itrunc(struct inode *ip)
 
   // block 12
   if(ip->addrs[NDIRECT + 1]){
+    // 拿二级块表
     bp = bread(ip->dev, ip->addrs[NDIRECT + 1]);
     a = (uint *)bp->data;
 
-    struct buf *bpd = 0;
     uint *b = 0;
+    // 二级块表中有NINDIRECT个一级块表
     for (j = 0; j < NINDIRECT; j++){
       if(a[j]){
+        // 拿一级块表
         bpd = bread(ip->dev, a[j]);
         b = (uint *)bpd->data;
         for (int k = 0; k < NINDIRECT; k++)

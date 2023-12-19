@@ -1,0 +1,15 @@
+kernel/file.h:
+annotations
+inode.addrs
+
+kernel/fs.h:
+NDIRECT, MAXFILE, dinode.addrs
+
+kernel/fs.c:
+bmap()
+itrunc()
+
+kernel/sysfile.c:
+sys_open()
+sys_symlink()
+sys_link() (annotations)
