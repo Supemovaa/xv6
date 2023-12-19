@@ -1,0 +1,17 @@
+kernel/proc.h:
+struct proc
+
+kernel/proc.c:
+allocproc()
+freeproc()
+proc_pagetable()
+proc_freepagetable()
+
+kernel/vm.c:
+vmprint()
+
+kernel/riscv.h:
+PTE_A
+
+kernel/sysproc.c:
+sys_pageaccess()

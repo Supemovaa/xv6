@@ -452,7 +452,7 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 
 static int vmprint_depth = 0;
 /**
- * @brief
+ * @brief print a pagetable recursively
  *
  * @param pagetable
  */
@@ -460,12 +460,16 @@ void vmprint(pagetable_t pagetable){
   if(vmprint_depth == 0)
     printf("page table %p\n", pagetable);
   for (int i = 0; i < 512; i++){
+    // typedef uint64 pte_t, typedef (uint64 *) pagetable_t;
     pte_t pte = pagetable[i];
+    // pte指的这一页有效
     if(pte & PTE_V){
       for (int j = 0; j <= vmprint_depth; j++)
         printf("..");
       printf("%d: pte %p pa %p\n", i, pte, PTE2PA(pte));
     }
+    // pte指的这一页不可写不可读不可执行，那么指向的是另一个页表
+    // 参考kernel/vm.c freewalk() 
     if((pte & PTE_V) && (pte & (PTE_R | PTE_W | PTE_X)) == 0){
       vmprint_depth++;
       pagetable_t sub_pagetable = (pagetable_t)PTE2PA(pte);
