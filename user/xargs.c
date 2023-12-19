@@ -7,11 +7,14 @@ int main(int argc, char **argv){
     char *params[MAXARG];
     char buf[MAXARG], line[128];
     int m = 0, bytes, paraIdx = 0;
+    // args passed after "xargs"
     for (int i = 1; i < argc; i++)
         params[paraIdx++] = argv[i];
 
+    // read args from stdin, and put them after args mentioned above
     while((bytes = read(0, line, sizeof(line))) > 0){
         for (int i = 0; i < bytes; i++){
+            // begin execution
             if(line[i] == '\n'){
                 buf[m++] = 0;
                 params[paraIdx++] = buf;
@@ -23,6 +26,7 @@ int main(int argc, char **argv){
                 else
                     wait(0);
             }
+            // this argumet ends
             else if(line[i] == ' '){
                 buf[m++] = 0;
                 params[paraIdx++] = buf;

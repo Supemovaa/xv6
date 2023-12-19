@@ -12,6 +12,7 @@ void sieve(int *p){
     printf("prime %d\n", prime);
     int newp[2];
     pipe(newp);
+    // 接受一次：如果还读到数字，说明筛仍未结束；否则筛结束，递归停止
     if(read(p[0], &recv, sizeof(int)) == 4){
         if (fork() == 0){
             sieve(newp);
@@ -19,6 +20,7 @@ void sieve(int *p){
         }
         else{
             close(newp[0]);
+            // 可能是质数
             if(recv % prime != 0)
                 write(newp[1], &recv, sizeof(int));
             while (read(p[0], &recv, sizeof(int)) == 4){
@@ -38,17 +40,16 @@ void sieve(int *p){
 int main(int argc, char *argv[]){
     int p[2];
     pipe(p);
+    // child process sieves prime numbers
     if (fork() == 0){
         sieve(p);
         exit(0);
     }
+    // father process write remaining numbers to child, and wait child ends
     else{
         close(p[0]);
-        int i = 2;
-        write(p[1], &i, sizeof(int));
-        for(i = 3; i <= 35; i += 2){
+        for(int i = 2; i <= 35; i++)
             write(p[1], &i, sizeof(int));
-        }
         close(p[1]);
         wait(NULL);
         exit(0);

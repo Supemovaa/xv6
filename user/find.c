@@ -4,12 +4,20 @@
 #include "kernel/fs.h"
 #include "kernel/fcntl.h"
 
+/**
+ * @brief find file "name" recursively, beginning from directory "path"
+ * 
+ * @param path 
+ * @param name 
+ */
 void find(char *path, char *name){
     char buf[512], *p;
     int fd;
+    // directory entry 文件目录项
     struct dirent de;
     struct stat st;
 
+    // 打开目录文件path
     if((fd = open(path, O_RDONLY)) < 0){
         fprintf(2, "ls: cannot open %s\n", path);
         return;
@@ -21,6 +29,7 @@ void find(char *path, char *name){
         return;
     }
 
+    // path是一个目录文件
     switch(st.type){
         case T_DEVICE:
         case T_FILE:
@@ -32,9 +41,11 @@ void find(char *path, char *name){
                 printf("ls: path too long\n");
                 break;
             }
+            // 记录名字
             strcpy(buf, path);
             p = buf+strlen(buf);
             *p++ = '/';
+            // 读取目录文件下所有的目录项
             while(read(fd, &de, sizeof(de)) == sizeof(de)){
                 if(de.inum == 0)
                     continue;
@@ -50,6 +61,7 @@ void find(char *path, char *name){
                     if(strcmp(name, de.name) == 0)
                         printf("%s\n", buf);
                 }
+                // 如果是path目录下的目录，递归地find
                 if(st.type == T_DIR){
                     find(buf, name);
                 }
