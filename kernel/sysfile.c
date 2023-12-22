@@ -15,6 +15,7 @@
 #include "sleeplock.h"
 #include "file.h"
 #include "fcntl.h"
+#include "memlayout.h"
 
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
@@ -502,4 +503,98 @@ sys_pipe(void)
     return -1;
   }
   return 0;
+}
+
+uint64
+sys_mmap(void)
+{
+  uint64 addr;
+  int len, prot, flags, fd, offset;
+  struct file* file;
+  struct vma* vma = 0;
+
+  argaddr(0, &addr);
+  argint(1, &len);
+  argint(2, &prot);
+  argint(3, &flags);
+  argfd(4, &fd, &file);
+  argint(5, &offset);
+
+  /** 保护权限冲突 */
+  if(!file->writable && (prot & PROT_WRITE) && flags==MAP_SHARED)
+    return -1;
+
+  struct proc* p = myproc();
+  len = PGROUNDUP(len);
+
+  if(p->sz+len > MAXVA)
+    return -1;
+
+  if(offset<0 || offset%PGSIZE)
+    return -1;
+
+  for(int i=0; i<NVMA; i++) {
+    if(p->vmas[i].addr)
+      continue;
+
+    vma = &p->vmas[i];
+    break;
+  }
+
+  if(!vma) /** 在 vm 中没找到可以被用作映射的空闲区域 */
+    return -1;
+
+  if(addr == 0) 
+    vma->addr = p->sz;
+  else  /** Caller 指定映射的起始地址 */
+    vma->addr = addr;
+
+  vma->len = len;
+  vma->prot = prot;
+  vma->flags = flags;
+  vma->fd = fd;
+  vma->offset = offset;
+  vma->file = file;
+  filedup(file);
+  p->sz += len;
+
+  return vma->addr;
+}
+
+uint64
+sys_munmap(void)
+{
+  uint64 addr;
+  int len;
+  struct vma* vma = 0;
+  struct proc* p = myproc();
+
+  argaddr(0, &addr);
+  argint(1, &len);
+
+  addr = PGROUNDDOWN(addr);
+  len = PGROUNDUP(len);
+
+  for(int i=0; i<NVMA; i++) {
+    if(p->vmas[i].addr && addr>=p->vmas[i].addr 
+      && addr+len<=p->vmas[i].addr+p->vmas[i].len) {
+      vma = &p->vmas[i];
+      break;
+    }
+  }
+
+  if(!vma)
+    return -1;
+
+  if(addr != vma->addr)
+    return -1;
+
+  /** 逐个释放 file 映射在 vm 中的 pages */
+  vma->addr += len;
+  vma->len -= len;
+  if(vma->flags & MAP_SHARED)
+    filewrite(vma->file, addr, len);
+  uvmunmap(p->pagetable, addr, len/PGSIZE, 1);
+
+  return 0;  
 }
